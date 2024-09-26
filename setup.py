@@ -5,7 +5,7 @@ setup(
     version="0.1.0",  # Version number
     packages=find_packages(),
     install_requires=[
-        "SQLAlchemy>=1.4"  # Added SQLAlchemy as a dependency
+        "SQLAlchemy==2.0.35"  
     ],
     entry_points={
         'console_scripts': [
