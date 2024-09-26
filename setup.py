@@ -1,13 +1,13 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="scheduler",  # Your package name
+    name="nih_scheduler",  # Your package name
     version="0.1.0",  # Version number
     packages=find_packages(),
     install_requires=[],  # Add any dependencies here
     entry_points={
         'console_scripts': [
-            'scheduler=mytool.main:main',  # This sets 'scheduler' as the command
+            'nih_scheduler=mytool.main:main',  # This sets 'scheduler' as the command
         ],
         
     },
