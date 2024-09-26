@@ -7,7 +7,7 @@ setup(
     install_requires=[],  # Add any dependencies here
     entry_points={
         'console_scripts': [
-            'nih_scheduler=scheduler.main:main',  # This sets 'scheduler' as the command
+            'nih_scheduler=mytool.main:main',  # This sets 'scheduler' as the command
         ],
         
     },
