@@ -9,7 +9,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'scheduler=mytool.main:main',  # This sets 'scheduler' as the command
+            'nih_scheduler=mytool.main:main',  # This sets 'scheduler' as the command
         ],
         
     },
