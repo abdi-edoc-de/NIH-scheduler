@@ -4,10 +4,12 @@ setup(
     name="nih_scheduler",  # Your package name
     version="0.1.0",  # Version number
     packages=find_packages(),
-    install_requires=[],  # Add any dependencies here
+    install_requires=[
+        "SQLAlchemy>=1.4"  # Added SQLAlchemy as a dependency
+    ],
     entry_points={
         'console_scripts': [
-            'nih_scheduler=mytool.main:main',  # This sets 'scheduler' as the command
+            'scheduler=mytool.main:main',  # This sets 'scheduler' as the command
         ],
         
     },
