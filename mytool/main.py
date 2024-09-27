@@ -45,7 +45,6 @@ Some bonus questions:
 """
 
 
-
 import argparse
 import logging
 from db.models import init_db, is_valid_column, Job
@@ -56,10 +55,17 @@ import sys
 
 def main():
     """
-    The main function starts the scheduler with arguments.
+    The main function starts the job scheduler with command-line arguments.
+    This function is the entry point of the program, where database initialization,
+    argument parsing, validation, and scheduler execution take place.
     """
+    # Configure the logging for the application
     configure_logging()
+
+    # Create an ArgumentParser object to handle command-line arguments
     parser = argparse.ArgumentParser(description="Job Scheduler")
+
+    # Add arguments for configuring the scheduler's behavior
     parser.add_argument(
         "--max-concurrent-jobs",
         type=int,
@@ -97,7 +103,10 @@ def main():
         help="Backoff multiplier for retry delays (default: 2.0)"
     )
 
+    # Parse the arguments provided via the command line
     args = parser.parse_args()
+    
+    # Assign the parsed argument values to variables for later use
     max_concurrent_jobs = args.max_concurrent_jobs
     status_key = args.status_key
     ready_val = args.ready_val
@@ -105,32 +114,37 @@ def main():
     delay = args.delay
     backoff = args.backoff
     
-    # Initialize the database with sample jobs if empty and set the status based on the provided status_key
+    # Initialize the database with sample jobs if it is empty,
+    # and use the provided status_key to track the job status.
     init_db(status_key)
 
-    # Validate that the status_key exists in the Job model before initializing the DB
-    # Ensure the specified status_key exists
+    # Validate that the provided status_key is a valid column in the Job model
     if is_valid_column(status_key):
         logging.error(f"Error: The status key '{status_key}' is not a valid column in the 'jobs' table.")
-        sys.exit(1)
+        sys.exit(1)  # Exit if the column is invalid
     else:
         logging.info(f"Using status key '{status_key}' for job scheduling.")
 
+    # Log the retry configuration details
     logging.info(f"Retry configuration - Tries: {tries}, Delay: {delay}, Backoff: {backoff}")
 
     try:
-        
+        # Run the scheduler with the provided arguments to process jobs concurrently
         scheduler_run(max_concurrent_jobs, status_key, ready_val, tries, delay, backoff)
         print("Scheduler finished running.")
+
+        # After the scheduler has completed, retrieve and log the latest job states
         with get_session() as session:
             jobs = session.query(Job).all()
             for job in jobs:
                 logging.info(f"{job} --- latest job state")
+    
+    # Catch any exceptions that occur during the scheduler execution
     except Exception as e:
         logging.error(f"Main encountered an exception: {e}")
-        sys.exit(1)
+        sys.exit(1)  # Exit the program with an error code
 
 
 if __name__ == "__main__":
+    # Entry point of the script, which calls the main function
     main()
-
