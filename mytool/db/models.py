@@ -76,3 +76,8 @@ def init_db(status_key: str):
         finally:
             session.close()
 
+def is_valid_column(column_name: str) -> bool:
+    """
+    Checks if the provided column name is a valid attribute of the Job class.
+    """
+    return hasattr(Job, column_name)
