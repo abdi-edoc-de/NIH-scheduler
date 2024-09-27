@@ -5,9 +5,9 @@ import logging
 import threading
 from typing import Iterator
 import concurrent.futures
-from db.session_manager import get_session
-from db.models import Job
-from .job_runner import run_job
+from mytool.db.session_manager import get_session
+from mytool.db.models import Job
+from mytool.scheduler.job_runner import run_job
 
 def get_jobs(session) -> Iterator[Job]:
     """

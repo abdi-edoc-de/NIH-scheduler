@@ -1,7 +1,7 @@
 import time
 import logging
-from db.session_manager import get_session
-from db.models import Job
+from mytool.db.session_manager import get_session
+from mytool.db.models import Job
 
 
 def arbitrary_job(**kwargs):

@@ -2,10 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name="nih_scheduler",
-    version="0.1.0",
-    packages=find_packages(),  # Automatically find all packages
+    version="0.1.1",
+    packages=find_packages(),
     install_requires=[
-        "SQLAlchemy==2.0.35"
+        "SQLAlchemy==2.0.35",
+        "setuptools==75.1.0"
     ],
     entry_points={
         'console_scripts': [

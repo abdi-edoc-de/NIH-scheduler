@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy import Column, Integer, String, inspect
 from sqlalchemy.orm import declarative_base
-from .session_manager import get_session, get_engine
+from mytool.db.session_manager import get_session, get_engine
 
 # Define the base class for SQLAlchemy models
 Base = declarative_base()
