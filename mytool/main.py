@@ -47,10 +47,10 @@ Some bonus questions:
 
 import argparse
 import logging
+from utils.logger import configure_logging
 from db.models import init_db, is_valid_column, Job
 from db.session_manager import get_session
 from scheduler.scheduler import scheduler_run
-from utils.logger import configure_logging
 import sys
 
 def main():
