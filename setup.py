@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="nih_scheduler",  # Your package name
     version="0.1.0",  # Version number
-    packages=find_packages(),
+    packages=find_packages("mytool.db", "mytool.scheduler", "mytool.utils"),
     install_requires=[
         "SQLAlchemy==2.0.35"  
     ],
