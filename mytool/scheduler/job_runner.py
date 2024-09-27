@@ -61,10 +61,9 @@ def run_job(job_key: int, status_key: str, tries: int, delay: float, backoff: fl
             # If this is the last attempt, log the failure and stop retrying
             if attempt == tries:
                 logging.error(f"Job {job_key} failed after {tries} attempts with exception: {e}")
-                break
-            else:
-                # Log the failure and retry after a delay
-                logging.warning(f"Job {job_key} failed on attempt {attempt} with exception: {e}. Retrying in {current_delay} seconds...")
-                time.sleep(current_delay)  # Wait for the specified delay before retrying
-                current_delay *= backoff  # Increase the delay using exponential backoff
-                attempt += 1  # Increment the attempt counter
+                
+            # Log the failure and retry after a delay
+            logging.warning(f"Job {job_key} failed on attempt {attempt} with exception: {e}. Retrying in {current_delay} seconds...")
+            time.sleep(current_delay)  # Wait for the specified delay before retrying
+            current_delay *= backoff  # Increase the delay using exponential backoff
+            attempt += 1  # Increment the attempt counter

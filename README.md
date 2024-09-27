@@ -18,7 +18,7 @@ First, you'll want to create a virtual environment to isolate the installation. 
 
 To create a virtual environment:
 
-#### On MacOS/Linux:
+#### On MacOS/Linux
 
 ```bash
 # Navigate to your project directory
@@ -31,7 +31,7 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-#### On Windows:
+#### On Windows
 
 ```bash
 # Navigate to your project directory
@@ -118,16 +118,211 @@ If you encounter any issues, try the following:
 
 ---
 
-## Updating NIH Scheduler
-
-If there are updates to the repository and you want to reinstall or update your existing installation, run:
-
-```bash
-pip3 install --upgrade git+https://github.com/abdi-edoc-de/NIH-scheduler.git
-```
-
-This will pull the latest changes from the repository and update the package in your virtual environment.
+# Bonus Questions
 
 ---
 
-Let me know if you need further assistance or encounter any issues during the installation process!
+## 1, Optimizing the `get_jobs` Function
+
+### 1. Filter Directly in the Query
+
+- **Benefit:** Reduces data fetched from the database.
+- **Implementation:**
+
+    ```python
+    def get_jobs(session, status_key, ready_val, batch_size=100):
+        return session.query(Job).filter(getattr(Job, status_key) == ready_val).yield_per(batch_size)
+    ```
+
+### 2. Use Batching with `yield_per`
+
+- **Benefit:** Lowers memory usage by processing jobs in chunks.
+- **Implementation:**
+
+    ```python
+    for job in get_jobs(session, 'state', 'Pending', batch_size=100):
+        process_job(job)
+    ```
+
+### 3. Index Relevant Columns
+
+- **Benefit:** Speeds up query filtering.
+- **Implementation:**
+
+    ```python
+    class Job(Base):
+        __tablename__ = 'jobs'
+        key = Column(Integer, primary_key=True)
+        state = Column(String, index=True)
+        # ...
+    ```
+
+### 4. Select Only Necessary Columns
+
+- **Benefit:** Minimizes data transfer and processing overhead.
+- **Implementation:**
+
+    ```python
+    def get_jobs(session, status_key, ready_val, columns=None, batch_size=100):
+        if columns:
+            query = session.query(*[getattr(Job, col) for col in columns]).filter(getattr(Job, status_key) == ready_val).yield_per(batch_size)
+        else:
+            query = session.query(Job).filter(getattr(Job, status_key) == ready_val).yield_per(batch_size)
+        for job in query:
+            yield job
+    ```
+
+### 5. Implement Asynchronous Retrieval (If Applicable)
+
+- **Benefit:** Enhances concurrency for IO-bound operations.
+- **Implementation:**
+
+    ```python
+    async def get_jobs_async(session, status_key, ready_val, batch_size=100):
+        stmt = select(Job).where(getattr(Job, status_key) == ready_val).limit(batch_size)
+        result = await session.execute(stmt)
+        for job in result.scalars():
+            yield job
+    ```
+
+---
+
+## 2. Are there tools that you would use instead of writing this script to manage the job scheduling? How would the entire solution change to adopt them?
+
+When building applications that require task scheduling or asynchronous job processing, we can leverage the following tools to manage and schedule jobs efficiently. These tools provide out-of-the-box features like scalability, retries, monitoring, and fault tolerance, making them a great choice over custom job scheduling scripts.
+
+### 1. Celery
+
+- **What it is:** A distributed task queue for running jobs asynchronously across multiple workers.
+- **Benefits:** Scalability, built-in retries, task scheduling, result storage, and task monitoring (with Flower).
+
+**Changes to the Solution:**
+
+- Define tasks using Celery's task decorator.
+
+```python
+from celery import Celery
+
+app = Celery('tasks', broker='redis://localhost:6379/0')
+
+@app.task
+def execute_job(job_id):
+    # Job logic
+    print(f"Executing job {job_id}")
+```
+
+- Jobs are scheduled and executed asynchronously using `delay()`.
+
+```python
+execute_job.delay(job_id)
+```
+
+- Run Celery workers to handle task execution.
+
+```bash
+celery -A tasks worker --loglevel=info
+```
+
+- Monitoring is done via the Flower dashboard for Celery.
+
+### 2. RQ (Redis Queue)
+
+- **What it is:** A simple job queue using Redis to queue tasks.
+- **Benefits:** Easy to set up, lightweight, ideal for smaller applications.
+
+**Changes to the Solution:**
+
+- Queue jobs in Redis using RQ.
+
+```python
+from rq import Queue
+from redis import Redis
+
+redis_conn = Redis()
+q = Queue(connection=redis_conn)
+
+def execute_job(job_id):
+    print(f"Executing job {job_id}")
+
+q.enqueue(execute_job, job_id)
+```
+
+- Run RQ workers to process jobs.
+
+```bash
+rq worker
+```
+
+- RQ includes a simple dashboard for monitoring task status.
+
+### 3. APScheduler
+
+- **What it is:** A lightweight in-process scheduler that allows scheduling jobs at intervals, cron schedules, or specific times.
+- **Benefits:** Simple and flexible scheduling with minimal setup.
+
+**Changes to the Solution:**
+
+- Schedule jobs using intervals or cron-like expressions.
+
+  ```python
+  from apscheduler.schedulers.background import BackgroundScheduler
+
+  scheduler = BackgroundScheduler()
+
+  def execute_job(job_id):
+      print(f"Executing job {job_id}")
+
+  scheduler.add_job(execute_job, 'interval', minutes=5, args=[job_id])
+  scheduler.start()
+  ```
+
+- Jobs can be persisted in a database for robustness if needed.
+
+### 4. Airflow
+
+- **What it is:** A workflow automation platform for managing complex workflows with dependencies.
+- **Benefits:** Supports DAGs (Directed Acyclic Graphs) for workflows, has a web UI for monitoring, and supports retries.
+
+**Changes to the Solution:**
+
+- Define workflows as DAGs.
+
+  ```python
+  from airflow import DAG
+  from airflow.operators.python_operator import PythonOperator
+  from datetime import datetime
+
+  def execute_job(**kwargs):
+      job_id = kwargs['job_id']
+      print(f"Executing job {job_id}")
+
+  default_args = {
+      'start_date': datetime(2023, 1, 1),
+  }
+
+  dag = DAG('job_scheduler', default_args=default_args, schedule_interval='@daily')
+
+  task = PythonOperator(
+      task_id='execute_job',
+      python_callable=execute_job,
+      op_kwargs={'job_id': 123},
+      dag=dag,
+  )
+  ```
+
+- Use Airflow’s web interface for monitoring tasks and workflows.
+- Run Airflow workers for distributed execution.
+
+### Conclusion
+
+Using these tools simplifies job scheduling and execution, offering features like:
+
+- **Scalability:** Distributed execution across workers or containers.
+- **Retries and Fault Tolerance:** Automatic retries, error handling, and fault tolerance.
+- **Monitoring:** Real-time monitoring via dashboards like Flower (for Celery), RQ dashboard, or Airflow UI.
+- **Asynchronous Execution:** Jobs are processed in the background, improving application performance.
+
+By adopting these tools, you reduce the need for custom scheduling logic, and your solution becomes more robust, scalable, and maintainable.
+
+---
+ 
