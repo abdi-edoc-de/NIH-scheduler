@@ -172,7 +172,7 @@ If you encounter any issues, try the following:
             yield job
     ```
 
-### 1.5 Implement Asynchronous Retrieval (If Applicable)
+### 1.6 Implement Asynchronous Retrieval (If Applicable)
 
 - **Benefit:** Enhances concurrency for IO-bound operations.
 - **Implementation:**
