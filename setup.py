@@ -1,24 +1,23 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="nih_scheduler",  # Your package name
-    version="0.1.0",  # Version number
-    packages=find_packages("mytool.db", "mytool.scheduler", "mytool.utils"),
+    name="nih_scheduler",
+    version="0.1.0",
+    packages=find_packages(),  # Automatically find all packages
     install_requires=[
-        "SQLAlchemy==2.0.35"  
+        "SQLAlchemy==2.0.35"
     ],
     entry_points={
         'console_scripts': [
-            'nih_scheduler=mytool.main:main',  # This sets 'scheduler' as the command
+            'nih_scheduler=mytool.main:main',  # This sets 'nih_scheduler' as the command
         ],
-        
     },
     description="A tool to run scheduled jobs",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     author="Abdulfeta Yusuf",
     author_email="abdulfeta.yusuff@example.com",
-    url="https://github.com/abdi-edoc-de/scheduler",  # URL to your project
+    url="https://github.com/abdi-edoc-de/scheduler",
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
