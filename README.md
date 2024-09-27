@@ -122,9 +122,9 @@ If you encounter any issues, try the following:
 
 ---
 
-## 1, Optimizing the `get_jobs` Function
+## 1. Optimizing the `get_jobs` Function
 
-### 1. Filter Directly in the Query
+### 1.1 Filter Directly in the Query
 
 - **Benefit:** Reduces data fetched from the database.
 - **Implementation:**
@@ -134,7 +134,7 @@ If you encounter any issues, try the following:
         return session.query(Job).filter(getattr(Job, status_key) == ready_val).yield_per(batch_size)
     ```
 
-### 2. Use Batching with `yield_per`
+### 1.2 Use Batching with `yield_per`
 
 - **Benefit:** Lowers memory usage by processing jobs in chunks.
 - **Implementation:**
@@ -144,7 +144,7 @@ If you encounter any issues, try the following:
         process_job(job)
     ```
 
-### 3. Index Relevant Columns
+### 1.4 Index Relevant Columns
 
 - **Benefit:** Speeds up query filtering.
 - **Implementation:**
@@ -157,7 +157,7 @@ If you encounter any issues, try the following:
         # ...
     ```
 
-### 4. Select Only Necessary Columns
+### 1.5 Select Only Necessary Columns
 
 - **Benefit:** Minimizes data transfer and processing overhead.
 - **Implementation:**
@@ -172,7 +172,7 @@ If you encounter any issues, try the following:
             yield job
     ```
 
-### 5. Implement Asynchronous Retrieval (If Applicable)
+### 1.5 Implement Asynchronous Retrieval (If Applicable)
 
 - **Benefit:** Enhances concurrency for IO-bound operations.
 - **Implementation:**
@@ -189,12 +189,12 @@ If you encounter any issues, try the following:
 
 ## 2. Are there tools that you would use instead of writing this script to manage the job scheduling? How would the entire solution change to adopt them?
 
-When building applications that require task scheduling or asynchronous job processing, we can leverage the following tools to manage and schedule jobs efficiently. These tools provide out-of-the-box features like scalability, retries, monitoring, and fault tolerance, making them a great choice over custom job scheduling scripts.
+Instead of writing our own script to handle job scheduling, we can use the following tools to manage and schedule jobs efficiently. These tools provide out-of-the-box features like scalability, retries, monitoring, and fault tolerance, making them a better choice than custom job scheduling scripts. If the problem is already solved, we shouldn't reinvent the wheel.
 
-### 1. Celery
+### 2.1 Celery
 
 - **What it is:** A distributed task queue for running jobs asynchronously across multiple workers.
-- **Benefits:** Scalability, built-in retries, task scheduling, result storage, and task monitoring (with Flower).
+- **Benefits:** Scalability, built-in retries, task scheduling, result storage, and task monitoring.
 
 **Changes to the Solution:**
 
@@ -223,9 +223,7 @@ execute_job.delay(job_id)
 celery -A tasks worker --loglevel=info
 ```
 
-- Monitoring is done via the Flower dashboard for Celery.
-
-### 2. RQ (Redis Queue)
+### 2.2 RQ (Redis Queue)
 
 - **What it is:** A simple job queue using Redis to queue tasks.
 - **Benefits:** Easy to set up, lightweight, ideal for smaller applications.
@@ -325,4 +323,104 @@ Using these tools simplifies job scheduling and execution, offering features lik
 By adopting these tools, you reduce the need for custom scheduling logic, and your solution becomes more robust, scalable, and maintainable.
 
 ---
- 
+
+# 3. What would you do differently if the job was CPU-bound rather than IO-bound? Particularly since Python is not a parallel language (i.e. GIL)
+
+If the job was **CPU-bound** rather than **IO-bound**, there are several considerations and strategies to optimize performance, especially given Python's Global Interpreter Lock (GIL), which limits true parallelism for CPU-bound tasks.
+
+### Key Differences for CPU-bound Jobs
+
+- **Python's GIL:** The GIL allows only one thread to execute Python bytecode at a time, which limits multithreading for CPU-bound tasks. Hence, using threads for CPU-bound tasks in Python won’t give true parallelism.
+
+### Strategies for Handling CPU-bound Jobs
+
+### 3.3.1. Use `multiprocessing` Instead of `Threading`
+
+- **Why:** Python’s `multiprocessing` module sidesteps the GIL by using separate processes instead of threads. Each process runs in its own memory space, allowing true parallelism, making it ideal for CPU-bound tasks.
+  
+- **How:**
+  - **Replace `ThreadPoolExecutor` with `ProcessPoolExecutor`:** This creates a pool of separate processes, bypassing the GIL.
+
+    ```python
+    from concurrent.futures import ProcessPoolExecutor
+
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        executor.submit(cpu_bound_task, job_id)
+    ```
+
+  - **Multiprocessing Example:**
+
+    ```python
+    from multiprocessing import Pool
+
+    def cpu_bound_task(job_id):
+        # Perform CPU-heavy work
+        print(f"Executing job {job_id}")
+
+    if __name__ == "__main__":
+        with Pool(processes=os.cpu_count()) as pool:
+            pool.map(cpu_bound_task, job_ids)
+    ```
+
+  - **Result:** Each CPU core will be able to run a separate process, achieving true parallelism.
+
+### 3.2. Leverage **Cython** or **NumPy** for Critical Sections
+
+- **Why:** If you are performing intensive mathematical computations, using libraries like **Cython** or **NumPy** can offload computations to C-level, which avoids the GIL.
+
+- **How:**
+  - **Cython** allows you to write C extensions for Python, significantly speeding up execution for CPU-bound tasks.
+  - **NumPy** is optimized for numerical computations and can leverage highly efficient C libraries (like BLAS, LAPACK).
+  
+    Example for intensive numerical work:
+
+    ```python
+    import numpy as np
+
+    def cpu_bound_task():
+        data = np.random.random((1000, 1000))
+        result = np.dot(data, data)  # Fast matrix multiplication
+    ```
+
+### 3.3. Offload to a Different Language (e.g., Go, Rust)
+
+- **Why:** For very CPU-intensive tasks, you might consider offloading parts of the application to a language that doesn't have a GIL, such as **Go** or **Rust**, which natively support true concurrency and parallelism.
+
+- **How:** You can implement specific performance-critical tasks in Go or Rust, and interface them with Python using:
+  - **FFI (Foreign Function Interface)**
+  - **gRPC** or **REST APIs** for microservices architecture
+
+### 3.4. Adjust `--max-concurrent-jobs` for CPU-bound Tasks
+
+- **Why:** For CPU-bound jobs, the optimal number of concurrent jobs should be based on the number of CPU cores. Running more jobs than the number of cores can cause CPU contention and reduce performance.
+
+- **How:**
+  - Use `os.cpu_count()` to dynamically adjust the number of concurrent workers.
+  
+    Example:
+
+    ```python
+    import os
+    max_concurrent_jobs = os.cpu_count()  # Set concurrency based on available cores
+    ```
+
+  - **Result:** For a CPU-bound task, setting the number of concurrent workers equal to the number of CPU cores will optimize performance.
+
+### 3.5. Consider Alternative Python Implementations (Jython, PyPy)
+
+- **Why:** Some Python implementations handle concurrency differently, and **PyPy**, for instance, might provide better performance for CPU-bound tasks.
+  
+- **Jython:** No GIL, but only supports Java threading, which may not work for all Python libraries.
+- **PyPy:** Features better performance on CPU-bound tasks due to its Just-in-Time (JIT) compilation.
+
+### Conclusion
+
+For CPU-bound tasks in Python:
+
+1. **Use multiprocessing** (or `ProcessPoolExecutor`) to bypass the GIL and achieve true parallelism.
+2. **Leverage optimized libraries** like Cython or NumPy for intensive calculations.
+3. **Offload tasks to other languages** (Go, Rust) that can handle concurrency more effectively.
+4. **Limit concurrent jobs** to the number of CPU cores to avoid CPU contention.
+5. **Consider alternative Python implementations** if applicable.
+
+These strategies ensure that your CPU-bound jobs execute efficiently even with Python's GIL limitations.
