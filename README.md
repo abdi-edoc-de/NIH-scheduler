@@ -58,10 +58,10 @@ This command pulls the latest code from the GitHub repository and installs it in
 
 ### 3. Verify the Installation
 
-After the installation completes, you can verify that the tool was installed correctly by checking the `nih_scheduler` command. Run the following:
+After the installation completes, you can verify that the tool was installed correctly by checking the `scheduler` command. Run the following:
 
 ```bash
-nih_scheduler --help
+scheduler --help
 ```
 
 If the installation was successful, this should display a help menu with the available command-line options for the scheduler.
@@ -69,7 +69,7 @@ If the installation was successful, this should display a help menu with the ava
 ### Example Output
 
 ```bash
-Usage: nih_scheduler [OPTIONS]
+Usage: scheduler [OPTIONS]
 
 Options:
   --max-concurrent-jobs INTEGER  Maximum number of concurrent jobs.
@@ -83,10 +83,10 @@ Options:
 
 ### 4. Running the Scheduler
 
-Once installed, you can now use the `nih_scheduler` command to schedule and execute jobs. Here’s an example:
+Once installed, you can now use the `scheduler` command to schedule and execute jobs. Here’s an example:
 
 ```bash
-nih_scheduler --status-key state --ready-val Pending --max-concurrent-jobs 5 --tries 3 --delay 2.0 --backoff 2.0
+scheduler --status-key state --ready-val Pending --max-concurrent-jobs 5 --tries 3 --delay 2.0 --backoff 2.0
 ```
 
 This will:
@@ -112,7 +112,7 @@ This will return you to your system's default Python environment.
 
 If you encounter any issues, try the following:
 
-1. **Make sure the virtual environment is activated** before running the `nih_scheduler` command.
+1. **Make sure the virtual environment is activated** before running the `scheduler` command.
 2. **Check for typos** in the command, especially in the GitHub URL or while creating/activating the virtual environment.
 3. **Ensure Python 3.6 or above is installed** by running `python3 --version` or `python --version` (depending on your OS).
 
@@ -253,7 +253,7 @@ rq worker
 
 - RQ includes a simple dashboard for monitoring task status.
 
-### 3. APScheduler
+### 2.3 APScheduler
 
 - **What it is:** A lightweight in-process scheduler that allows scheduling jobs at intervals, cron schedules, or specific times.
 - **Benefits:** Simple and flexible scheduling with minimal setup.
@@ -276,7 +276,7 @@ rq worker
 
 - Jobs can be persisted in a database for robustness if needed.
 
-### 4. Airflow
+### 2.4 Airflow
 
 - **What it is:** A workflow automation platform for managing complex workflows with dependencies.
 - **Benefits:** Supports DAGs (Directed Acyclic Graphs) for workflows, has a web UI for monitoring, and supports retries.
@@ -326,101 +326,183 @@ By adopting these tools, you reduce the need for custom scheduling logic, and yo
 
 # 3. What would you do differently if the job was CPU-bound rather than IO-bound? Particularly since Python is not a parallel language (i.e. GIL)
 
-If the job was **CPU-bound** rather than **IO-bound**, there are several considerations and strategies to optimize performance, especially given Python's Global Interpreter Lock (GIL), which limits true parallelism for CPU-bound tasks.
+If the job was CPU-bound rather than IO-bound, several adjustments would be needed to optimize performance, especially considering Python's Global Interpreter Lock (GIL), which limits true parallelism for CPU-bound tasks.
 
-### Key Differences for CPU-bound Jobs
+**Key Differences Between CPU-bound and IO-bound Jobs:**
 
-- **Python's GIL:** The GIL allows only one thread to execute Python bytecode at a time, which limits multithreading for CPU-bound tasks. Hence, using threads for CPU-bound tasks in Python won’t give true parallelism.
+- **CPU-bound jobs:** Tasks that require intensive computation, fully utilizing the CPU.
+- **IO-bound jobs:** Tasks that spend time waiting for external inputs/outputs, like file I/O or network requests, where the CPU is idle during waits.
 
-### Strategies for Handling CPU-bound Jobs
+Since Python's GIL only allows one thread to execute Python bytecode at a time, multithreading doesn’t provide true parallelism for CPU-bound tasks. Therefore, for CPU-bound jobs, we need to bypass the GIL and utilize multiple CPU cores effectively.
 
-### 3.3.1. Use `multiprocessing` Instead of `Threading`
+## 3.1 Use `multiprocessing` Instead of `Threading`
 
-- **Why:** Python’s `multiprocessing` module sidesteps the GIL by using separate processes instead of threads. Each process runs in its own memory space, allowing true parallelism, making it ideal for CPU-bound tasks.
-  
-- **How:**
-  - **Replace `ThreadPoolExecutor` with `ProcessPoolExecutor`:** This creates a pool of separate processes, bypassing the GIL.
-
-    ```python
-    from concurrent.futures import ProcessPoolExecutor
-
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        executor.submit(cpu_bound_task, job_id)
-    ```
-
-  - **Multiprocessing Example:**
-
-    ```python
-    from multiprocessing import Pool
-
-    def cpu_bound_task(job_id):
-        # Perform CPU-heavy work
-        print(f"Executing job {job_id}")
-
-    if __name__ == "__main__":
-        with Pool(processes=os.cpu_count()) as pool:
-            pool.map(cpu_bound_task, job_ids)
-    ```
-
-  - **Result:** Each CPU core will be able to run a separate process, achieving true parallelism.
-
-### 3.2. Leverage **Cython** or **NumPy** for Critical Sections
-
-- **Why:** If you are performing intensive mathematical computations, using libraries like **Cython** or **NumPy** can offload computations to C-level, which avoids the GIL.
+- **Why:** Python’s **GIL** allows only one thread to execute at a time, limiting the effectiveness of multithreading for CPU-bound tasks. **Multiprocessing** spawns separate processes, each with its own Python interpreter and memory space, allowing true parallelism.
 
 - **How:**
-  - **Cython** allows you to write C extensions for Python, significantly speeding up execution for CPU-bound tasks.
-  - **NumPy** is optimized for numerical computations and can leverage highly efficient C libraries (like BLAS, LAPACK).
+  - Use **`ProcessPoolExecutor`** or the **`multiprocessing`** module to run CPU-bound tasks in separate processes, taking full advantage of multiple CPU cores.
   
-    Example for intensive numerical work:
+  ```python
+  from concurrent.futures import ProcessPoolExecutor
+  import os
 
-    ```python
-    import numpy as np
+  def cpu_bound_task(job_id):
+      print(f"Job {job_id}: Performing CPU-intensive task")
+      result = sum(i * i for i in range(10000000))  # Example of CPU-bound work
+      print(f"Job {job_id}: Completed with result {result}")
 
-    def cpu_bound_task():
-        data = np.random.random((1000, 1000))
-        result = np.dot(data, data)  # Fast matrix multiplication
-    ```
+  if __name__ == "__main__":
+      with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+          for job_id in range(10):
+              executor.submit(cpu_bound_task, job_id)
+  ```
 
-### 3.3. Offload to a Different Language (e.g., Go, Rust)
+  - **Result:** Each process runs independently on its own CPU core, bypassing the GIL and allowing for efficient parallel execution of CPU-bound jobs.
 
-- **Why:** For very CPU-intensive tasks, you might consider offloading parts of the application to a language that doesn't have a GIL, such as **Go** or **Rust**, which natively support true concurrency and parallelism.
+## 3.2 Leverage C Libraries for Performance (Cython)
 
-- **How:** You can implement specific performance-critical tasks in Go or Rust, and interface them with Python using:
-  - **FFI (Foreign Function Interface)**
-  - **gRPC** or **REST APIs** for microservices architecture
-
-### 3.4. Adjust `--max-concurrent-jobs` for CPU-bound Tasks
-
-- **Why:** For CPU-bound jobs, the optimal number of concurrent jobs should be based on the number of CPU cores. Running more jobs than the number of cores can cause CPU contention and reduce performance.
+- **Why:** **Cython** is used to convert Python code to C, allowing you to optimize CPU-heavy parts of your application. Cython can bypass the GIL in performance-critical sections, allowing C-level speed for CPU-bound tasks.
 
 - **How:**
-  - Use `os.cpu_count()` to dynamically adjust the number of concurrent workers.
-  
-    Example:
+  - Write performance-critical sections in Cython and compile them into C code. This reduces the overhead of Python's GIL for CPU-bound computations.
+
+    **Example:**
+    In a `.pyx` file (`cpu_bound_task.pyx`):
+
+    ```cython
+    def cpu_bound_task(int job_id):
+        cdef int i, result = 0
+        for i in range(100000000):
+            result += i
+        print(f"Job {job_id}: Finished computation, result = {result}")
+    ```
+
+    To compile the `.pyx` file, use:
+
+    ```bash
+    cythonize -i cpu_bound_task.pyx
+    ```
+
+    After compiling, you can call this function from Python and get the performance benefits of C code for CPU-bound tasks:
+
+    ```python
+    from cpu_bound_task import cpu_bound_task
+    cpu_bound_task(1)
+    ```
+
+## 3.3 Offload to a Different Language (e.g., Go, Rust)
+
+- **Why:** For tasks that are extremely CPU-intensive, you can offload computation-heavy parts of your application to languages that don’t have a GIL, such as **Go** or **Rust**. These languages are designed for concurrency and parallelism, allowing better CPU usage.
+
+- **How:** Implement the performance-critical sections of your application in Go or Rust, and interface with Python using:
+  - **FFI (Foreign Function Interface):** Allows direct interaction with shared libraries written in C, Go, or Rust.
+  - **Microservices architecture:** Write the CPU-intensive portions of the code in Go or Rust, expose them as services via REST or gRPC APIs, and call these services from your Python application.
+
+## 3.4 Adjust `--max-concurrent-jobs` for CPU-bound Tasks
+
+- **Why:** CPU-bound tasks consume significant processing power. Running too many CPU-bound jobs simultaneously can lead to CPU contention and performance degradation.
+
+- **How:** Set the `--max-concurrent-jobs` parameter based on the number of CPU cores. Use `os.cpu_count()` to dynamically set the number of parallel jobs equal to the number of CPU cores:
 
     ```python
     import os
-    max_concurrent_jobs = os.cpu_count()  # Set concurrency based on available cores
+    max_concurrent_jobs = os.cpu_count()  # Set the number of jobs to match available CPU cores
     ```
 
-  - **Result:** For a CPU-bound task, setting the number of concurrent workers equal to the number of CPU cores will optimize performance.
+  - **Result:** This ensures that each job runs on a separate core, maximizing CPU efficiency and avoiding performance bottlenecks.
 
-### 3.5. Consider Alternative Python Implementations (Jython, PyPy)
+## 3.5 Consider Using Alternative Python Implementations (e.g., PyPy)
 
-- **Why:** Some Python implementations handle concurrency differently, and **PyPy**, for instance, might provide better performance for CPU-bound tasks.
-  
-- **Jython:** No GIL, but only supports Java threading, which may not work for all Python libraries.
-- **PyPy:** Features better performance on CPU-bound tasks due to its Just-in-Time (JIT) compilation.
+- **Why:** Python’s **PyPy** is a Just-in-Time (JIT) compiled Python implementation that speeds up execution for CPU-bound tasks. PyPy may significantly outperform CPython for certain types of CPU-intensive tasks.
+
+- **How:** Use **PyPy** to execute your CPU-bound tasks, allowing JIT compilation to optimize the performance:
+
+    ```bash
+    pypy script.py
+    ```
+
+## Conclusion
+
+To handle CPU-bound tasks differently:
+
+1. **Use `multiprocessing`** to bypass the GIL, utilizing multiple CPU cores for parallel processing.
+2. **Leverage Cython** to convert CPU-heavy sections of code to C for better performance.
+3. **Offload CPU-heavy tasks** to efficient, concurrency-friendly languages like Go or Rust.
+4. **Adjust `--max-concurrent-jobs`** based on available CPU cores to avoid contention and optimize CPU usage.
+5. **Consider PyPy** for its JIT compilation, which can offer a significant speed boost for CPU-bound tasks.
+
+---
+
+# 4. How should someone deploying a scheduler-powered job determine their value for `--max-concurrent-jobs`?
+
+When deploying a scheduler-powered job, determining the value for `--max-concurrent-jobs` requires consideration of several factors such as job type (CPU-bound or IO-bound), system resources, and performance requirements. Here's how to approach it:
+
+### 4.1 **Understand the Job Type**
+
+- **CPU-bound jobs:** These tasks use a significant amount of CPU resources. Running too many concurrent jobs can cause CPU contention, which will reduce performance.
+  - **Recommendation:** Set the number of concurrent jobs to the number of CPU cores.
+  - Example:
+
+       ```python
+       max_concurrent_jobs = os.cpu_count()  # Matches the number of CPU cores
+       ```
+
+- **IO-bound jobs:** These tasks spend much of their time waiting for input/output operations (e.g., network requests, file I/O). In this case, you can run more jobs concurrently, as they aren't bottlenecked by CPU availability.
+  - **Recommendation:** Set the number of concurrent jobs to higher than the number of CPU cores (e.g., 2-5× the core count).
+  - Example:
+
+       ```python
+       max_concurrent_jobs = os.cpu_count() * 5  # More jobs can run in parallel
+       ```
+
+### 4.2 **Consider System Resources**
+
+- **CPU cores:** Use `os.cpu_count()` to determine the number of physical CPU cores, ensuring that CPU-bound tasks don’t exceed this number.
+- **Memory (RAM):** Ensure that each job’s memory requirement doesn’t exceed the available system memory. Too many jobs using too much memory can cause system thrashing (swap usage).
+  - **Recommendation:** Calculate the total available memory and the memory per job:
+
+       ```python
+       max_concurrent_jobs = total_system_memory / memory_per_job
+       ```
+
+### 4.3 **Test and Benchmark**
+
+- **Start conservatively:** Begin with fewer concurrent jobs and gradually increase based on system performance and resource usage.
+- **Monitor resource utilization:** Tools like `htop`, `top`, or cloud service monitoring tools can help you observe CPU, memory, and I/O usage during job execution.
+- **Adjust accordingly:** Based on how the system performs, adjust `--max-concurrent-jobs`. If the system remains underutilized, you can safely increase the number of jobs. If the system becomes slow or overloaded, reduce the number.
+
+### 4.4 **Factor in External Dependencies**
+
+- **External APIs or databases:** If the jobs depend on external systems (e.g., APIs or databases), you should ensure that those systems can handle multiple concurrent requests without slowing down. If not, reduce the number of concurrent jobs accordingly to avoid overwhelming them.
+
+### 4.5 **Dynamic Scaling**
+
+- **Advanced Scaling:** In dynamic systems, you can adjust `--max-concurrent-jobs` based on real-time performance metrics. Using autoscaling techniques, you can increase or decrease the number of concurrent jobs based on the load on your system and external dependencies.
+
+### 4.6 **Short-running vs Long-running Jobs**
+
+- **Short-running jobs:** If your jobs are short in duration, you may be able to set a higher number of concurrent jobs to optimize throughput.
+- **Long-running jobs:** Fewer concurrent jobs may be ideal for longer-running processes to prevent overloading the system for extended periods.
+
+### Example Calculation
+
+For a system with:
+
+- 8 CPU cores
+- 32 GB of RAM
+- Each job uses 1 GB of RAM
+
+You could set:
+
+- **CPU-bound tasks:** `--max-concurrent-jobs=8`
+- **IO-bound tasks:** `--max-concurrent-jobs=32` (assuming the system can handle it).
 
 ### Conclusion
 
-For CPU-bound tasks in Python:
+To determine the value for `--max-concurrent-jobs`:
 
-1. **Use multiprocessing** (or `ProcessPoolExecutor`) to bypass the GIL and achieve true parallelism.
-2. **Leverage optimized libraries** like Cython or NumPy for intensive calculations.
-3. **Offload tasks to other languages** (Go, Rust) that can handle concurrency more effectively.
-4. **Limit concurrent jobs** to the number of CPU cores to avoid CPU contention.
-5. **Consider alternative Python implementations** if applicable.
-
-These strategies ensure that your CPU-bound jobs execute efficiently even with Python's GIL limitations.
+1. Identify whether the task is CPU-bound or IO-bound.
+2. Evaluate the available system resources (CPU, memory).
+3. Test and monitor system performance to fine-tune the number of jobs.
+4. Factor in the capacity of any external systems the job interacts with.
+5. Adjust dynamically based on system performance, if possible.

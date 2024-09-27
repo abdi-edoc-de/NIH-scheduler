@@ -10,7 +10,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'nih_scheduler=mytool.main:main',  # This sets 'nih_scheduler' as the command
+            'scheduler=mytool.main:main',  # This sets 'nih_scheduler' as the command
         ],
     },
     description="A tool to run scheduled jobs",

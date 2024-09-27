@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 # The engine is responsible for managing the connection to the SQLite database.
 # 'sqlite:///jobs_orm.db' creates an SQLite database file named 'jobs_orm.db' in the current directory.
 # Set echo=True to enable SQL statement logging, useful for debugging.
-engine = create_engine('sqlite:///jobs_orm.db', echo=False)  # Set echo=True for SQL debugging
+# Set echo=True for SQL debugging
+engine = create_engine('sqlite:///jobs.db', echo=False)
 
 # SessionFactory creates new SQLAlchemy sessions, which represent interactions with the database.
 # sessionmaker is bound to the engine, meaning all sessions will use the specified database.
@@ -16,6 +17,7 @@ SessionFactory = sessionmaker(bind=engine)
 # one session per thread or context. This helps manage the lifecycle of sessions more efficiently.
 Session = scoped_session(SessionFactory)
 
+
 def get_engine():
     """
     Returns the SQLAlchemy engine.
@@ -24,14 +26,15 @@ def get_engine():
     """
     return engine
 
+
 @contextmanager
 def get_session():
     """
     Context manager for SQLAlchemy sessions to ensure proper resource management.
-    
+
     The session is opened when the context is entered and closed automatically when the context is exited,
     ensuring no resources (like connections) are left open and helping to prevent memory leaks.
-    
+
     Using this approach ensures that the session is properly closed even if an exception occurs.
     """
     session = Session()  # Create a new session
