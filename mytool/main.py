@@ -80,10 +80,10 @@ class Job(Base):
     key = Column(Integer, primary_key=True)
     state = Column(String)
 
-
     def __init__(self, **kwargs):
         """
         Initialize the Job with dynamic status_key.
+        kwargs can initialize job attributes dynamically.
         """
         for column in self.__table__.columns.keys():
             if column in kwargs:
@@ -121,14 +121,9 @@ def get_session():
 
 def arbitrary_job(**kwargs):
     """
-    This is a placeholder for arbitrary, IO- or CPU-bound jobs run using
-    subprocess, etc.
-
-    It takes arguments derived from a subset of database columns.
-
-    State is updated as a side effect of the process
+    Placeholder for arbitrary, IO- or CPU-bound jobs.
+    Simulates job execution by sleeping for 5 seconds.
     """
-
     job_key = kwargs.get('key')
     logging.info(f"Job {job_key}: Starting arbitrary_job")
     time.sleep(5)  # Simulate an IO-bound operation
@@ -142,40 +137,45 @@ def init_db(status_key: str):
     """
     Base.metadata.create_all(engine)
     with get_session() as session:
-        count = session.query(Job).count()
-        if count == 0:
-            sample_jobs = []
-            # Create 5 pending jobs
-            for _ in range(5):
-                job = Job()
-                setattr(job, status_key, 'Pending')
-                sample_jobs.append(job)
+        try:
+            count = session.query(Job).count()
+            if count == 0:
+                sample_jobs = []
+                # Create 5 pending jobs
+                for _ in range(5):
+                    job = Job()
+                    setattr(job, status_key, 'Pending')
+                    sample_jobs.append(job)
 
-            # Create a 'Done' job
-            job_done = Job()
-            setattr(job_done, status_key, 'Done')
-            sample_jobs.append(job_done)
+                # Create a 'Done' job
+                job_done = Job()
+                setattr(job_done, status_key, 'Done')
+                sample_jobs.append(job_done)
 
-            # Create a 'Started' job
-            job_started = Job()
-            setattr(job_started, status_key, 'Started')
-            sample_jobs.append(job_started)
+                # Create a 'Started' job
+                job_started = Job()
+                setattr(job_started, status_key, 'Started')
+                sample_jobs.append(job_started)
 
-            session.add_all(sample_jobs)
-            session.commit()
-            logging.info("Initialized the database with sample jobs.")
+                session.add_all(sample_jobs)
+                session.commit()
+                logging.info("Initialized the database with sample jobs.")
 
-            # Print all jobs
-            jobs = session.query(Job).all()
-            for job in jobs:
-                logging.info(f"{job} --- created")
-        else:
-            logging.info("Database already initialized with existing jobs.")
+                # Print all jobs
+                jobs = session.query(Job).all()
+                for job in jobs:
+                    logging.info(f"{job} --- created")
+            else:
+                logging.info("Database already initialized with existing jobs.")
+        except Exception as e:
+            logging.error(f"Error during database initialization: {e}")
+        finally:
+            session.close()
 
 
 def get_jobs(session) -> Iterator[Job]:
     """
-    Yields each job in the job table, regardless of status, in order.
+    Yields each job in the job table regardless of status.
     """
     jobs = session.query(Job).all()
     for job in jobs:
@@ -183,30 +183,45 @@ def get_jobs(session) -> Iterator[Job]:
         yield job
 
 
-def run_job(job_key: int, status_key: str):
+def run_job(job_key: int, status_key: str, tries: int, delay: float, backoff: float):
     """
-    Executes a job and updates its status to 'Done'.
+    Executes a job and updates its status to 'Done' with retry logic.
     """
-    with get_session() as session:
+    attempt = 1
+    current_delay = delay
+    while attempt <= tries:
         try:
-            job = session.query(Job).get(job_key)
-            if job is None:
-                logging.warning(f"Job {job_key} not found")
-                return
-            logging.info(f"Running {job}")
-            # Simulate the job execution
-            arbitrary_job(key=job.key)
-            job.update_state('Done', session, status_key=status_key)
+            with get_session() as session:
+                # this is for testing purposes
+                if attempt == 1:
+                    raise Exception("Test exception")
+                job = session.query(Job).get(job_key)
+                if job is None:
+                    logging.warning(f"Job {job_key} not found")
+                    return
+                logging.info(f"Running {job}")
+                # Simulate the job execution
+                arbitrary_job(key=job.key)
+                job.update_state('Done', session, status_key=status_key)
+            break  # Exit the loop if job succeeds
         except Exception as e:
-            logging.error(f"Job {job_key} failed with exception: {e}")
+            if attempt == tries:
+                logging.error(f"Job {job_key} failed after {tries} attempts with exception: {e}")
+                break
+            else:
+                logging.warning(f"Job {job_key} failed on attempt {attempt} with exception: {e}. Retrying in {current_delay} seconds...")
+                time.sleep(current_delay)
+                current_delay *= backoff
+                attempt += 1
 
 
-def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str):
+def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tries: int, delay: float, backoff: float):
     """
     Runs the scheduler to execute jobs concurrently based on the specified status column.
     """
     logging.info("Starting scheduler...")
     logging.info(f"Max concurrent jobs: {max_concurrent_jobs}, Status key: '{status_key}', Ready value: '{ready_val}'")
+    logging.info(f"Retry configuration - Tries: {tries}, Delay: {delay}, Backoff: {backoff}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_jobs) as executor:
         futures = set()
@@ -232,8 +247,8 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str):
                             if current_status == ready_val:
                                 # Update the job's status to 'Started'
                                 job.update_state('Started', session, status_key=status_key)
-                                # Submit the job to the executor
-                                future = executor.submit(run_job, job.key, status_key)
+                                # Submit the job to the executor with retry parameters
+                                future = executor.submit(run_job, job.key, status_key, tries, delay, backoff)
                                 futures.add(future)
                     except AttributeError as ae:
                         logging.error(f"Attribute error: {ae}")
@@ -265,17 +280,6 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str):
 def main():
     """
     The main function starts the scheduler with arguments.
-
-    The basic structure here, parsing arguments, and running `scheduler_run`
-    can be modified as you will. `max_concurrent_jobs`, `status_key`, and
-    `ready_val` are required arguments. You can add others if you think they're
-    needed.
-
-    `scheduler_run` is a placeholder for what you will implement. A scheduler
-    must fetch the pending jobs and add them for execution.
-
-    It can be a single function as shown below, or you can initialize an object
-    here, then have it start running the scheduler.
     """
     parser = argparse.ArgumentParser(description="Job Scheduler")
     parser.add_argument(
@@ -296,26 +300,51 @@ def main():
         default="Pending",
         help="Value indicating a job is ready to run (default: 'Pending')"
     )
+    parser.add_argument(
+        "--tries",
+        type=int,
+        default=3,
+        help="Number of retry attempts for failed jobs (default: 3)"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=2.0,
+        help="Initial delay between retries in seconds (default: 2.0)"
+    )
+    parser.add_argument(
+        "--backoff",
+        type=float,
+        default=2.0,
+        help="Backoff multiplier for retry delays (default: 2.0)"
+    )
 
     args = parser.parse_args()
     max_concurrent_jobs = args.max_concurrent_jobs
     status_key = args.status_key
     ready_val = args.ready_val
-
-    # initializing the DB with status key
+    tries = args.tries
+    delay = args.delay
+    backoff = args.backoff
+    
+    # Initialize the database with sample jobs if empty and set the status based on the provided status_key
     init_db(status_key)
 
-    # Ensure the specified status_key exists in the 'jobs' table
+    # Validate that the status_key exists in the Job model before initializing the DB
     inspector = inspect(engine)
     columns = [column['name'] for column in inspector.get_columns('jobs')]
+    
+    # Ensure the specified status_key exists
     if status_key not in columns:
         logging.error(f"Error: The status key '{status_key}' is not a valid column in the 'jobs' table.")
         sys.exit(1)
     else:
         logging.info(f"Using status key '{status_key}' for job scheduling.")
 
+    logging.info(f"Retry configuration - Tries: {tries}, Delay: {delay}, Backoff: {backoff}")
+
     try:
-        scheduler_run(max_concurrent_jobs, status_key, ready_val)
+        scheduler_run(max_concurrent_jobs, status_key, ready_val, tries, delay, backoff)
         with get_session() as session:
             jobs = session.query(Job).all()
             for job in jobs:
@@ -327,3 +356,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
