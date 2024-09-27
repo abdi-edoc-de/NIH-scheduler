@@ -29,7 +29,6 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
     logging.info(f"Retry configuration - Tries: {tries}, Delay: {delay}, Backoff: {backoff}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent_jobs) as executor:
-        futures = set()
         interrupted = threading.Event()
 
         def signal_handler(signum, frame):
@@ -43,6 +42,7 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
 
         try:
             while not interrupted.is_set():
+                futures = set()
                 with get_session() as session:
                     try:
                         # Fetch all jobs
@@ -57,26 +57,25 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
                                 futures.add(future)
                     except AttributeError as ae:
                         logging.error(f"Attribute error: {ae}")
-
+                
                 if not futures:
                     # If no jobs are pending, wait before checking again
-                    time.sleep(1)
+                    time.sleep(5)
                     continue
 
                 # Wait for the first future to complete
                 done, _ = concurrent.futures.wait(
-                    futures, timeout=1, return_when=concurrent.futures.FIRST_COMPLETED
+                    futures, timeout=1, return_when=concurrent.futures.ALL_COMPLETED
                 )
 
                 for future in done:
                     if future.exception() is not None:
                         logging.error(f"Job failed with exception: {future.exception()}")
-                    futures.remove(future)
                 time.sleep(0.5)
 
             # Wait for all running jobs to complete before exiting
-            concurrent.futures.wait(
-                futures, return_when=concurrent.futures.ALL_COMPLETED)
+            # concurrent.futures.wait(
+            #     futures, return_when=concurrent.futures.ALL_COMPLETED)
         except Exception as e:
             logging.error(f"Scheduler encountered an exception: {e}")
             sys.exit(1)

@@ -1,8 +1,6 @@
-# session_manager.py
-
+from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
-from contextlib import contextmanager
 
 # SQLAlchemy engine and session setup
 engine = create_engine('sqlite:///jobs_orm.db', echo=False)  # Set echo=True for SQL debugging

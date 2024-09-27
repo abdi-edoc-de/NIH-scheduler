@@ -15,6 +15,8 @@ class Job(Base):
     state = Column(String)
 
     def __init__(self, **kwargs):
+        
+                
         for column in self.__table__.columns.keys():
             if column in kwargs:
                 setattr(self, column, kwargs[column])
