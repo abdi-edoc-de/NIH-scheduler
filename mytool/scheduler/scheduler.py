@@ -85,4 +85,3 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
             executor.shutdown(wait=True)
 
         logging.info("Scheduler shut down gracefully")
-        sys.exit(0)

@@ -1,14 +1,11 @@
 import logging
+from sqlalchemy import  Column, Integer, String, inspect
+from sqlalchemy.orm import declarative_base
+from .session_manager import get_session, get_engine
 
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
-from .session_manager import get_session
 
-# SQLAlchemy setup
-engine = create_engine('sqlite:///jobs_orm.db', echo=False)  # Set echo=True for SQL debugging
+
 Base = declarative_base()
-SessionFactory = sessionmaker(bind=engine)
-Session = scoped_session(SessionFactory)
 
 
 class Job(Base):
@@ -39,7 +36,7 @@ def init_db(status_key: str):
     Initializes the database and populates it with sample jobs if empty.
     Sets the status based on the provided status_key.
     """
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(get_engine())
     with get_session() as session:
         try:
             count = session.query(Job).count()
@@ -76,8 +73,10 @@ def init_db(status_key: str):
         finally:
             session.close()
 
+
 def is_valid_column(column_name: str) -> bool:
     """
     Checks if the provided column name is a valid attribute of the Job class.
     """
-    return hasattr(Job, column_name)
+    inspector = inspect(get_engine())       
+    return column_name not in [column['name'] for column in inspector.get_columns('jobs')]
