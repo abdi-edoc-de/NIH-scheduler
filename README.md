@@ -1,7 +1,7 @@
 
-# Installation Guide for NIH Scheduler
+# Installation Guide for Scheduler
 
-This guide walks you through installing the **NIH Scheduler** tool from the [GitHub repository](https://github.com/abdi-edoc-de/NIH-scheduler.git) into a Python virtual environment.
+This guide walks you through installing the **Scheduler** tool from the [GitHub repository](https://github.com/abdi-edoc-de/NIH-scheduler.git) into a Python virtual environment.
 
 ## Prerequisites
 
@@ -46,9 +46,9 @@ venv\Scripts\activate
 
 Once the environment is activated, your terminal prompt will show `(venv)` to indicate that you're inside the virtual environment.
 
-### 2. Install NIH Scheduler from GitHub
+### 2. Install Scheduler from GitHub
 
-With your virtual environment activated, run the following command to install the **NIH Scheduler** directly from the GitHub repository:
+With your virtual environment activated, run the following command to install the **Scheduler** directly from the GitHub repository:
 
 ```bash
 pip3 install git+https://github.com/abdi-edoc-de/NIH-scheduler.git
@@ -144,7 +144,7 @@ If you encounter any issues, try the following:
         process_job(job)
     ```
 
-### 1.4 Index Relevant Columns
+### 1.3 Index Relevant Columns
 
 - **Benefit:** Speeds up query filtering.
 - **Implementation:**
@@ -157,7 +157,7 @@ If you encounter any issues, try the following:
         # ...
     ```
 
-### 1.5 Select Only Necessary Columns
+### 1.4 Select Only Necessary Columns
 
 - **Benefit:** Minimizes data transfer and processing overhead.
 - **Implementation:**
@@ -311,17 +311,6 @@ rq worker
 - Use Airflow’s web interface for monitoring tasks and workflows.
 - Run Airflow workers for distributed execution.
 
-### Conclusion
-
-Using these tools simplifies job scheduling and execution, offering features like:
-
-- **Scalability:** Distributed execution across workers or containers.
-- **Retries and Fault Tolerance:** Automatic retries, error handling, and fault tolerance.
-- **Monitoring:** Real-time monitoring via dashboards like Flower (for Celery), RQ dashboard, or Airflow UI.
-- **Asynchronous Execution:** Jobs are processed in the background, improving application performance.
-
-By adopting these tools, you reduce the need for custom scheduling logic, and your solution becomes more robust, scalable, and maintainable.
-
 ---
 
 # 3. What would you do differently if the job was CPU-bound rather than IO-bound? Particularly since Python is not a parallel language (i.e. GIL)
@@ -421,16 +410,6 @@ Since Python's GIL only allows one thread to execute Python bytecode at a time, 
     pypy script.py
     ```
 
-## Conclusion
-
-To handle CPU-bound tasks differently:
-
-1. **Use `multiprocessing`** to bypass the GIL, utilizing multiple CPU cores for parallel processing.
-2. **Leverage Cython** to convert CPU-heavy sections of code to C for better performance.
-3. **Offload CPU-heavy tasks** to efficient, concurrency-friendly languages like Go or Rust.
-4. **Adjust `--max-concurrent-jobs`** based on available CPU cores to avoid contention and optimize CPU usage.
-5. **Consider PyPy** for its JIT compilation, which can offer a significant speed boost for CPU-bound tasks.
-
 ---
 
 # 4. How should someone deploying a scheduler-powered job determine their value for `--max-concurrent-jobs`?
@@ -496,13 +475,3 @@ You could set:
 
 - **CPU-bound tasks:** `--max-concurrent-jobs=8`
 - **IO-bound tasks:** `--max-concurrent-jobs=32` (assuming the system can handle it).
-
-### Conclusion
-
-To determine the value for `--max-concurrent-jobs`:
-
-1. Identify whether the task is CPU-bound or IO-bound.
-2. Evaluate the available system resources (CPU, memory).
-3. Test and monitor system performance to fine-tune the number of jobs.
-4. Factor in the capacity of any external systems the job interacts with.
-5. Adjust dynamically based on system performance, if possible.
