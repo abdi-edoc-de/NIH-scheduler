@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="nih_scheduler",
+    name="scheduler",
     version="0.1.1",
     packages=find_packages(),
     install_requires=[
@@ -10,7 +10,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'scheduler=mytool.main:main',  # This sets 'nih_scheduler' as the command
+            'scheduler=mytool.main:main',  # This sets 'scheduler' as the command
         ],
     },
     description="A tool to run scheduled jobs",
