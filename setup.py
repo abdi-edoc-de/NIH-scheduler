@@ -5,9 +5,7 @@ setup(
     version="0.1.1",
     packages=find_packages(),
     install_requires=[
-        "SQLAlchemy==2.0.35",
-        "setuptools==75.1.0"
-    ],
+        "SQLAlchemy==2.0.35"],
     entry_points={
         'console_scripts': [
             'scheduler=mytool.main:main',  # This sets 'scheduler' as the command
