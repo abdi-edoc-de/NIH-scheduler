@@ -49,10 +49,10 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C (SIGINT)
         signal.signal(signal.SIGTERM, signal_handler)  # Handle termination signals (SIGTERM)
+        futures = set()  # Set to store the futures representing running jobs
 
         try:
             while not interrupted.is_set():  # Continue running until an interrupt is received
-                futures = set()  # Set to store the futures representing running jobs
                 with get_session() as session:  # Get a new session from the session manager
                     try:
                         # Fetch all jobs from the database
@@ -75,10 +75,11 @@ def scheduler_run(max_concurrent_jobs: int, status_key: str, ready_val: str, tri
 
                 # Wait for the first future to complete
                 done, _ = concurrent.futures.wait(
-                    futures, timeout=1, return_when=concurrent.futures.ALL_COMPLETED
+                    futures, timeout=1, return_when=concurrent.futures.FIRST_COMPLETED
                 )
 
                 for future in done:  # Process each completed job
+                    futures.remove(future)
                     if future.exception() is not None:  # If there was an exception during job execution
                         logging.error(f"Job failed with exception: {future.exception()}")
                 time.sleep(0.5)  # Sleep briefly before the next iteration
